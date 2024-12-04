@@ -1,10 +1,15 @@
 #include "peconv/exceptions_parser.h"
+#include "peconv/util.h"
 
 #include "peconv/pe_hdrs_helper.h"
 #include "ntddk.h"
 
 #ifdef _DEBUG
 #include <iostream>
+#endif
+
+#ifndef min
+#define min(a,b) (((a) < (b)) ? (a) : (b))
 #endif
 
 namespace details {
@@ -157,7 +162,7 @@ namespace details {
         _In_ ULONG BuildNumber
     ) {
         NtVersion version{};
-        RtlSecureZeroMemory(&version, sizeof NtVersion);
+        RtlSecureZeroMemory(&version, sizeof(NtVersion));
         RtlCurrentVersion(&version);
         if (version.MajorVersion == MajorVersion) {
             if (version.MinorVersion == MinorVersion) return version.BuildNumber >= BuildNumber;
@@ -173,7 +178,7 @@ namespace details {
         _In_ BYTE Flags
     ) {
         NtVersion version{};
-        RtlSecureZeroMemory(&version, sizeof NtVersion);
+        RtlSecureZeroMemory(&version, sizeof(NtVersion));
         RtlCurrentVersion(&version);
         if (version.MajorVersion == MajorVersion &&
             ((Flags & RTL_VERIFY_FLAGS_MINOR_VERSION) ? version.MinorVersion == MinorVersion : true) &&
@@ -211,7 +216,7 @@ namespace details {
     }
 #endif
 
-    static __forceinline bool IsModuleUnloaded(PLDR_DATA_TABLE_ENTRY entry) {
+    static PECONV_FORCEINLINE bool IsModuleUnloaded(PLDR_DATA_TABLE_ENTRY entry) {
         if (RtlIsWindowsVersionOrGreater(6, 2, 0)) { // Windows 8+
             return PLDR_DATA_TABLE_ENTRY_WIN8(entry)->DdagNode->State == LdrModulesUnloaded;
         }
@@ -230,8 +235,7 @@ namespace details {
 #ifdef _DEBUG
         std::cout << "Searching in section " << SectionName << " in module " << ModuleHandle << std::endl;
 #endif
-
-        __try {
+        PECONV_TRY_EXCEPT_BLOCK_START
 
             //
             // checks if no search pattern and length are provided
@@ -241,7 +245,11 @@ namespace details {
                 SearchContext->Result = nullptr;
                 SearchContext->MemoryBlockSize = 0;
                 status = STATUS_INVALID_PARAMETER;
+#ifdef _MSC_VER
                 __leave;
+#else
+                return status;
+#endif
             }
 
             if (SearchContext->Result) {
@@ -273,12 +281,20 @@ namespace details {
                         SearchContext->Result = nullptr;
                         SearchContext->MemoryBlockSize = 0;
                         status = STATUS_NOT_FOUND;
+#ifdef _MSC_VER
                         __leave;
+#else
+                        return status;
+#endif
                     }
                 }
                 else {
                     status = STATUS_INVALID_PARAMETER_1;
+#ifdef _MSC_VER
                     __leave;
+#else
+                    return status;
+#endif
                 }
             }
 
@@ -289,7 +305,11 @@ namespace details {
             LPBYTE end = SearchContext->Result + SearchContext->MemoryBlockSize - SearchContext->PatternSize;
             while (SearchContext->Result <= end) {
                 if (RtlCompareMemory(SearchContext->SearchPattern, SearchContext->Result, SearchContext->PatternSize) == SearchContext->PatternSize) {
+#ifdef _MSC_VER
                     __leave;
+#else
+                    return GetExceptionCode();
+#endif
                 }
 
                 ++SearchContext->Result;
@@ -304,7 +324,7 @@ namespace details {
             SearchContext->MemoryBlockSize = 0;
             status = STATUS_NOT_FOUND;
         }
-        __except (EXCEPTION_EXECUTE_HANDLER) {
+        PECONV_TRY_EXCEPT_BLOCK_END
             status = GetExceptionCode();
         }
 
