@@ -231,10 +231,16 @@ namespace details {
         _Inout_ PSEARCH_CONTEXT SearchContext) {
 
         NTSTATUS status = STATUS_SUCCESS;
+#ifdef _MSC_VER
+#define RtlFindMemoryBlockFromModuleSection__leave __leave
+#else
+#define RtlFindMemoryBlockFromModuleSection__leave return status
+#endif
 
 #ifdef _DEBUG
         std::cout << "Searching in section " << SectionName << " in module " << ModuleHandle << std::endl;
 #endif
+
         PECONV_TRY_EXCEPT_BLOCK_START
 
             //
@@ -245,11 +251,7 @@ namespace details {
                 SearchContext->Result = nullptr;
                 SearchContext->MemoryBlockSize = 0;
                 status = STATUS_INVALID_PARAMETER;
-#ifdef _MSC_VER
-                __leave;
-#else
-                return status;
-#endif
+                RtlFindMemoryBlockFromModuleSection__leave;
             }
 
             if (SearchContext->Result) {
@@ -281,20 +283,12 @@ namespace details {
                         SearchContext->Result = nullptr;
                         SearchContext->MemoryBlockSize = 0;
                         status = STATUS_NOT_FOUND;
-#ifdef _MSC_VER
-                        __leave;
-#else
-                        return status;
-#endif
+                        RtlFindMemoryBlockFromModuleSection__leave;
                     }
                 }
                 else {
                     status = STATUS_INVALID_PARAMETER_1;
-#ifdef _MSC_VER
-                    __leave;
-#else
-                    return status;
-#endif
+                    RtlFindMemoryBlockFromModuleSection__leave;
                 }
             }
 
@@ -305,11 +299,7 @@ namespace details {
             LPBYTE end = SearchContext->Result + SearchContext->MemoryBlockSize - SearchContext->PatternSize;
             while (SearchContext->Result <= end) {
                 if (RtlCompareMemory(SearchContext->SearchPattern, SearchContext->Result, SearchContext->PatternSize) == SearchContext->PatternSize) {
-#ifdef _MSC_VER
-                    __leave;
-#else
-                    return GetExceptionCode();
-#endif
+                    RtlFindMemoryBlockFromModuleSection__leave;
                 }
 
                 ++SearchContext->Result;
